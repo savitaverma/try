@@ -12,7 +12,7 @@ variables:
   - name: _BuildConfig
     value: Release
   - name: _PublishUsingPipelines
-    value: false
+    value: true
   - name: _DotNetArtifactsCategory
     value: .NETCore
   - name: BlazorTemplateVersion
@@ -33,7 +33,7 @@ stages:
       enableMicrobuild: true
       enablePublishBuildArtifacts: true
       enablePublishTestResults: true
-      enablePublishBuildAssets: false
+      enablePublishBuildAssets: true
       enablePublishUsingPipelines: $(_PublishUsingPipelines)
       enableTelemetry: true
       helixRepo: dotnet/try
@@ -57,12 +57,15 @@ stages:
                    /p:MicroBuild_SigningEnabled=true
                    /p:OverridePackageSource=https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json
                    /p:TeamName=$(_TeamName)
+                   /p:DotNetPublishBlobFeedKey=$(dotnetfeed-storage-access-key-1)
+                   /p:DotNetPublishBlobFeedUrl=https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json
+                   /p:DotNetPublishToBlobFeed=true
                    /p:DotNetPublishUsingPipelines=$(_PublishUsingPipelines)
                    /p:DotNetArtifactsCategory=$(_DotNetArtifactsCategory)
-                   /p:OfficialBuildId=$(BUILD.BUILDNUMBER)
-                   /p:PublishToSymbolServer=true
                    /p:DotNetSymbolServerTokenMsdl=$(microsoft-symbol-server-pat)
                    /p:DotNetSymbolServerTokenSymWeb=$(symweb-symbol-server-pat)
+                   /p:OfficialBuildId=$(BUILD.BUILDNUMBER)
+                   /p:PublishToSymbolServer=true
         # else
         - ${{ if or(eq(variables['System.TeamProject'], 'public'), in(variables['Build.Reason'], 'PullRequest')) }}:
           - name: _SignType
@@ -283,6 +286,17 @@ stages:
   #           searchFolder: '$(SystemWorkingDirectory)/testResults'
   #         continueOnError: true
   #         condition: always()
+
+#---------------------------------------------------------------------------------------------------------------------#
+#                                                    Post Build                                                       #
+#---------------------------------------------------------------------------------------------------------------------#
+- ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: eng/common/templates/post-build/post-build.yml
+    parameters:
+      # Symbol validation is not entirely reliable as of yet, so should be turned off until https://github.com/dotnet/arcade/issues/2871 is resolved.
+      enableSymbolValidation: false
+      # SourceLink improperly looks for generated files.  See https://github.com/dotnet/arcade/issues/3069
+      enableSourceLinkValidation: false
 
 #---------------------------------------------------------------------------------------------------------------------#
 #                                                  Package upload                                                     #
